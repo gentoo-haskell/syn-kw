@@ -1,0 +1,31 @@
+name:                syn-kw
+version:             0.0.1
+synopsis:            Sync keywords from one ebuild subree to another
+description:         Sync keywords from one ebuild subree to another.
+                     Usage:
+                         $ syn-kw [-p] <from_repo> <to_repo>
+                             -p - means"pretend" (aka dry run)
+
+                     Typical usecase:
+                         $ syn-kw -p gentoo-x86/ gentoo-haskell/
+                         Syncing keywords from gentoo-x86/ to gentoo-haskell/ [dry run]
+                         Pulled 137 ebuild(s) for consideration
+                         gentoo-haskell/dev-haskell/hscolour/hscolour-1.17.ebuild:
+                             from: alpha amd64 ia64 ~ppc64 sparc x86
+                               to: alpha amd64 ia64 ~ppc64 ~sparc x86
+                              new: alpha amd64 ia64 ~ppc64 sparc x86
+                     Aha, hscolour stabilized on sparc!
+                         $ syn-kw gentoo-x86/ gentoo-haskell/
+                     and we have pulled all the new keywords!
+
+category:            System
+license:             BSD3
+
+author:              Sergei Trofimovich
+maintainer:          Sergei Trofimovich <slyfox@gentoo.org>
+build-Depends:       base, containers, directory, filepath, haskell98, unix
+build-type:          Simple
+
+executable:          syn-kw
+main-is:             Main.hs
+ghc-options:         -Wall -Werror
