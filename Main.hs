@@ -73,11 +73,13 @@ data Ebuild = Ebuild { before_keywords :: String
 ltrim :: String -> String
 ltrim = dropWhile isSpace
 
-parse_ebuild :: String -> Ebuild
-parse_ebuild s_ebuild =
+parse_ebuild :: String -> String -> Ebuild
+parse_ebuild ebuild_path s_ebuild =
     let lns    = lines s_ebuild
         -- TODO: nicer pattern match and errno
-        [kw_lineno] = findIndices (isPrefixOf "KEYWORDS" . ltrim) lns
+        kw_lineno = case (findIndices (isPrefixOf "KEYWORDS" . ltrim) lns) of
+                        [kw_ln] -> kw_ln
+                        other   -> error $ ebuild_path ++ ": parse_ebuild: strange KEYWORDS lines: " ++ show other
         pre  = unlines $ take kw_lineno lns
         post = unlines $ drop (succ kw_lineno) lns
         kw_line = lns !! kw_lineno
@@ -130,8 +132,8 @@ main = do
     forM_ intersecting_ebuilds $ \rel_path ->
         let from_ebuild = from_tree </> rel_path
             to_ebuild   = to_tree   </> rel_path
-        in do from_e <- parse_ebuild <$> readFile from_ebuild
-              to_e   <- parse_ebuild <$> readFile   to_ebuild
+        in do from_e <- parse_ebuild from_ebuild <$> readFile from_ebuild
+              to_e   <- parse_ebuild   to_ebuild <$> readFile   to_ebuild
               let new_keywords = update_keywords (keywords from_e) (keywords to_e)
                   res_e = to_e { keywords = new_keywords }
               when (keywords from_e /= keywords to_e) $
