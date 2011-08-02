@@ -1,15 +1,15 @@
 module Main ( main ) where
 
 import Control.Applicative ((<$>))
-import Control.Monad (filterM, forM_, when)
+import Control.Monad (forM_, when)
 
 import Data.Char (isSpace)
-import Data.List (findIndices, intercalate, isPrefixOf)
+import Data.List (findIndices, intercalate, isPrefixOf, sort)
 import qualified Data.Map as M
 
 import System.Directory (getDirectoryContents)
 import System.FilePath ((</>))
-import System.Posix.Files (fileExist, getFileStatus, isDirectory)
+import System.Posix.Files (fileExist, getFileStatus, isDirectory, isRegularFile)
 import System.Environment (getArgs)
 import System.Exit (exitWith, ExitCode(..))
 
@@ -98,18 +98,29 @@ update_keywords :: Keywords -> Keywords -> Keywords
 update_keywords (Keywords from) (Keywords to) =
     Keywords $ M.unionWith max from to
 
-fetch_ebuilds :: FilePath -> FilePath -> IO [FilePath]
-fetch_ebuilds root_path rel_path =
-    do let full_path = root_path </> rel_path
-       d <- isDirectory <$> getFileStatus full_path
-       if d
-           then do dir_entries <- filter (`notElem` [".", "..", "_darcs", "CVS", "files", ".git"]) <$>
-                                      getDirectoryContents full_path
-                   sub_entries <- mapM (fetch_ebuilds root_path . (rel_path </>)) dir_entries
-                   return $ concat sub_entries
-           else if reverse ".ebuild" `isPrefixOf` reverse full_path
-                    then return [rel_path]
-                    else return []
+fetch_intersecting_ebuilds :: (FilePath, FilePath) -> FilePath -> IO [FilePath]
+fetch_intersecting_ebuilds roots@(from_root_path,to_root_path) rel_path =
+    do let from_full_path = from_root_path </> rel_path
+           to_full_path   =   to_root_path </> rel_path
+
+           is_ebuild = reverse ".ebuild" `isPrefixOf` reverse rel_path
+
+       yet_dest <- fileExist to_full_path
+
+       if yet_dest
+          then do from_status <- getFileStatus from_full_path
+                  to_status   <- getFileStatus   to_full_path
+                  let are_files = isRegularFile from_status && isRegularFile to_status
+                      are_dirs  = isDirectory   from_status && isDirectory   to_status
+
+                  case () of
+                      _ | are_files && is_ebuild -> return [rel_path]
+                      _ | are_dirs -> do dir_entries <- sort . filter (`notElem` [".", "..", "_darcs", "CVS", "files", ".git"]) <$>
+                                                            getDirectoryContents from_full_path
+                                         sub_entries <- mapM (fetch_intersecting_ebuilds roots . (rel_path </>)) dir_entries
+                                         return $ concat sub_entries
+                      _ -> return []
+          else return []
 
 main :: IO ()
 main = do
@@ -121,11 +132,7 @@ main = do
             _              -> usage >> undefined
     debug $ concat ["Syncing keywords from ", from_tree, " to ", to_tree, if pretend then " [dry run]" else "" ]
 
-    from_ebuilds <- fetch_ebuilds from_tree []
-
-    let yet_in_to_tree :: FilePath -> IO Bool
-        yet_in_to_tree rel_path = fileExist (to_tree </> rel_path)
-    intersecting_ebuilds <- filterM yet_in_to_tree from_ebuilds
+    intersecting_ebuilds <- fetch_intersecting_ebuilds (from_tree,to_tree) []
 
     debug $ concat ["Pulled ", show (length intersecting_ebuilds), " ebuild(s) for consideration"]
 
