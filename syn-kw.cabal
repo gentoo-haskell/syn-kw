@@ -23,7 +23,11 @@ license:             BSD3
 
 author:              Sergei Trofimovich
 maintainer:          Sergei Trofimovich <slyfox@gentoo.org>
-build-Depends:       base, containers, directory, filepath, haskell98, unix
+build-depends:       base,
+                     containers,
+                     directory,
+                     filepath,
+                     unix
 build-type:          Simple
 
 executable:          syn-kw
