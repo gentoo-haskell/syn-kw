@@ -14,19 +14,15 @@ import System.Environment (getArgs)
 import System.Exit (exitWith, ExitCode(..))
 
 usage :: IO ()
-usage =
-    do putStrLn "usage: syn-kw [-p] <from-tree> <to-tree>"
-       exitWith (ExitFailure 1)
+usage = do
+    putStrLn "usage: syn-kw [-p] <from-tree> <to-tree>"
+    exitWith (ExitFailure 1)
 
 debug :: String -> IO ()
-debug str =
-    do putStrLn str
-       return ()
+debug str = putStrLn str
 
 info :: String -> IO ()
-info str =
-    do putStrLn str
-       return ()
+info str = putStrLn str
 
 -- We rely on sort order here
 data Mark = Masked
