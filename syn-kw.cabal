@@ -32,4 +32,4 @@ build-type:          Simple
 
 executable:          syn-kw
 main-is:             Main.hs
-ghc-options:         -Wall -Werror
+ghc-options:         -Wall
