@@ -69,23 +69,25 @@ data Ebuild = Ebuild { before_keywords :: String
 ltrim :: String -> String
 ltrim = dropWhile isSpace
 
-parse_ebuild :: String -> String -> Ebuild
-parse_ebuild ebuild_path s_ebuild =
+parse_ebuild :: String -> String -> Either String Ebuild
+parse_ebuild ebuild_path s_ebuild = do
     let lns    = lines s_ebuild
         -- TODO: nicer pattern match and errno
-        kw_lineno = case (findIndices (isPrefixOf "KEYWORDS" . ltrim) lns) of
-                        [kw_ln] -> kw_ln
+    kw_lineno <- case (findIndices (isPrefixOf "KEYWORDS" . ltrim) lns) of
+                        []      -> Left "ebuild without keywords"
+                        [kw_ln] -> Right kw_ln
                         other   -> error $ ebuild_path ++ ": parse_ebuild: strange KEYWORDS lines: " ++ show other
-        pre  = unlines $ take kw_lineno lns
+    let pre  = unlines $ take kw_lineno lns
         post = unlines $ drop (succ kw_lineno) lns
         kw_line = lns !! kw_lineno
         (pre_q1, q1)  = break (== '"') kw_line
         (kw, post_q1) = break (== '"') (tail q1)
 
-    in  Ebuild { before_keywords = pre ++ pre_q1 ++ "\""
-               , keywords        = read_kws kw
-               , after_keywords  = post_q1 ++ "\n" ++ post
-               }
+        e = Ebuild { before_keywords = pre ++ pre_q1 ++ "\""
+                   , keywords        = read_kws kw
+                   , after_keywords  = post_q1 ++ "\n" ++ post
+                   }
+    return e
 
 show_ebuild :: Ebuild -> String
 show_ebuild e = before_keywords e ++ show (keywords e) ++ after_keywords e
@@ -135,15 +137,21 @@ main = do
     forM_ intersecting_ebuilds $ \rel_path ->
         let from_ebuild = from_tree </> rel_path
             to_ebuild   = to_tree   </> rel_path
-        in do from_e <- parse_ebuild from_ebuild <$> readFile from_ebuild
-              to_e   <- parse_ebuild   to_ebuild <$> readFile   to_ebuild
-              let new_keywords = update_keywords (keywords from_e) (keywords to_e)
-                  res_e = to_e { keywords = new_keywords }
-              when (keywords from_e /= keywords to_e) $
-                  do info $ concat [to_ebuild, ":\n"
-                                   , "    from: ", show (keywords from_e), "\n"
-                                   , "      to: ", show (keywords to_e)]
-              when (new_keywords /= keywords to_e) $
-                  do info $ concat [ "     new: ", show (keywords  res_e)]
-                     when (not pretend) $
-                         writeFile to_ebuild (show_ebuild res_e)
+        in do m_from_e <- parse_ebuild from_ebuild <$> readFile from_ebuild
+              m_to_e   <- parse_ebuild   to_ebuild <$> readFile   to_ebuild
+              case (m_from_e, m_to_e) of
+                  (Right from_e, Right to_e) -> do
+                      let new_keywords = update_keywords (keywords from_e) (keywords to_e)
+                          res_e = to_e { keywords = new_keywords }
+                      when (keywords from_e /= keywords to_e) $
+                          do info $ concat [to_ebuild, ":\n"
+                                           , "    from: ", show (keywords from_e), "\n"
+                                           , "      to: ", show (keywords to_e)]
+                      when (new_keywords /= keywords to_e) $
+                          do info $ concat [ "     new: ", show (keywords  res_e)]
+                             when (not pretend) $
+                                 writeFile to_ebuild (show_ebuild res_e)
+                  _ -> info $ concat [ "Skipped (Failed to find KEYWORDS):\n"
+                                     , "    ", from_ebuild, "\n"
+                                     , "    ", to_ebuild
+                                     ]
